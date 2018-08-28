@@ -28,7 +28,6 @@ export default class EventStore<State, EventTypes> {
   // public eventMap: Map<string, (state: State, ...args: any[]) => any> = new Map()
   eventMap: { [key: string]: IEventHandler<State, EventTypes> } = {}
   constructor(
-    public effectProcessor: EffectsProcessor<EventTypes>,
     public appState: State,
   ) {}
 

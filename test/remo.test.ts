@@ -1,8 +1,4 @@
-import * as firebase from 'firebase'
-import FirebaseProjectRepository from 'src/repositories/FirebaseProjectRepository'
-import FirebaseUserRepository from 'src/repositories/FirebaseUserRepository'
-import EffectsProcessor from 'src/stores/EventStore/EffectsProcessor'
-import EventStore from 'src/stores/EventStore/EventStore'
+import EventStore from '../src/remo'
 
 describe('EventStore', () => {
   let state = {}
@@ -11,14 +7,7 @@ describe('EventStore', () => {
 
   beforeEach(() => {
     state = {}
-    store = new EventStore(
-      new EffectsProcessor(
-        {} as firebase.database.Reference,
-        {} as FirebaseProjectRepository,
-        {} as FirebaseUserRepository,
-      ),
-      state,
-    )
+    store = new EventStore({})
 
     store.on('on-success', () => {
       return
