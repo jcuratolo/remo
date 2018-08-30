@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "noImplicitAny": true,
+    "noUnusedLocals": true,
+    "noImplicitReturns": true,
+    "strictNullChecks": false,
+    "target": "ES2016",
+    "module": "commonjs",
+    // "outFile": "dist/index.js",
+    "strict": true,
+    "lib": ["dom", "es2018"],
+    "outDir": "./public/scripts/"
+  },
+  "include": [
+    "src/**/*"
+  ],
+  
+}

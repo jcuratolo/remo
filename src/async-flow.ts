@@ -1,102 +1,124 @@
-// const effect = {
-//   startWith: "init-app",
-//   rules: [
-//     { when: "seen", event: "init-app-success", dispatch: "get-user" },
-//     { when: "seen", event: "get-user-success", dispatch: "get-user-project" },
-//     {
-//       when: "seen",
-//       event: "get-user-project-success",
-//       dispatch: "get-user-schedule"
-//     },
-//     { when: "seen", event: "get-user-success-success", halt: true }
-//   ]
+// import Remo from "./remo";
+
+// // const effect = {
+// //   startWith: "init-app",
+// //   rules: [
+// //     { when: "seen", event: "init-app-success", dispatch: "get-user" },
+// //     { when: "seen", event: "get-user-success", dispatch: "get-user-project" },
+// //     {
+// //       when: "seen",
+// //       event: "get-user-project-success",
+// //       dispatch: "get-user-schedule"
+// //     },
+// //     { when: "seen", event: "get-user-success-success", halt: true }
+// //   ]
+// // };
+
+// type AsyncFlowRule = {
+//   when: "seen" | "seen-all" | "seen-any";
+//   events: string;
+//   dispatch: "string";
+//   halt?: boolean
+// };
+// type AsyncFlow = {
+//   startWith: string;
+//   rules: Array<AsyncFlowRule>;
 // };
 
-const nullAsyncFlow = {
-  startWith: "",
-  rules: []
-};
+// type AsyncFlowContext = {
+//   events: Array<string>
+//   activeRuleIndex: number
+// }
+// const nullAsyncFlow: AsyncFlow = {
+//   startWith: "",
+//   rules: []
+// };
 
-function asyncFlow(store, { startWith = "", rules = [] } = nullAsyncFlow) {
-  const ctx = {
-    events: [],
-    activeRuleIndex: 0
-  };
+// export function asyncFlow(
+//   store: Remo,
+//   { startWith = "", rules = [] } = nullAsyncFlow
+// ) {
+//   const ctx: AsyncFlowContext = {
+//     events: [],
+//     activeRuleIndex: 0
+//   };
 
-  function handler(state, [type]) {
-    const { events, activeRuleIndex } = ctx;
-    const activeRule = rules[activeRuleIndex];
+//   let disposer: Function
 
-    if (!activeRule) {
-      return store.removePostEventCallback(handler);
-    }
+//   function handler(store: Remo, type: string, payload?: any) {
+//     const { events, activeRuleIndex } = ctx;
+//     const activeRule = rules[activeRuleIndex];
 
-    const { when, halt } = activeRule;
+//     if (!activeRule) {
+//       return disposer()
+//     }
 
-    if (halt) {
-      store.removePostEventCallback(handler);
-    }
+//     const { when, halt } = activeRule;
 
-    // keep track of seen events
-    events.push(type);
+//     if (halt) {
+//       disposer()
+//     }
 
-    // Nothing to do if rule is not satisfied
-    if (!satisfiesRule(events, when)) {
-      return;
-    }
+//     // keep track of seen events
+//     events.push(type);
 
-    // get list of events and dispatch
-    ruleToDispatches(rule).forEach(event => store.dispatch(...event));
+//     // Nothing to do if rule is not satisfied
+//     if (!satisfiesRule(events, when)) {
+//       return;
+//     }
 
-    ctx.activeRuleIndex++;
-  }
+//     // get list of events and dispatch
+//     ruleToDispatches([].concat(activeRule.events)).forEach(event => store.dispatch(...event));
 
-  store.addPostEventCallback(handler);
-  store.dispatch(startWith);
-}
+//     ctx.activeRuleIndex++;
+//   }
 
-function satisfiesRule(events, rule) {
-  switch (rule.when) {
-    case "seen":
-      return events.includes(rule.events);
+//   disposer = store.addPostEventCallback(handler);
+//   store.dispatch(startWith);
+// }
 
-    case "seen-all":
-      return rule.events.every(ev => events.includes(ev));
+// function satisfiesRule(events: Array<string>, rule: AsyncFlowRule) {
+//   switch (rule.when) {
+//     case "seen":
+//       return events.includes(rule.events);
 
-    case "seen-any":
-      return rule.events.some(ev => events.includes(ev));
+//     case "seen-all":
+//       return rule.events.every(ev => events.includes(ev));
 
-    default:
-      throw new Error(`Unknown flow rule predicate type ${rule.when}`);
-  }
-}
+//     case "seen-any":
+//       return rule.events.some(ev => events.includes(ev));
 
-function ruleToDispatches({ dispatch = [], dispatchN = [] }) {
-  return [dispatch, ...dispatchN];
-}
+//     default:
+//       throw new Error(`Unknown flow rule predicate type ${rule.when}`);
+//   }
+// }
 
-const msgPrefix = `[ASYNC FLOW FX]`;
-const validPredicateTypes = ["seen", "seen-all", "seen-any"];
+// function ruleToDispatches({ dispatch = [], dispatchN = [] }: AsyncFlowRule) {
+//   return [dispatch, ...dispatchN];
+// }
 
-function validateRule({
-  when = "",
-  events = [],
-  dispatch = [],
-  dispatchN = []
-}) {
-  if (!validPredicateTypes.includes(when)) {
-    throw new Error(
-      `${msgPrefix} Invalid predicate type ${when}. Predicate type must be one of ${validPredicateTypes.join(
-        " "
-      )}`
-    );
-  }
+// const msgPrefix = `[ASYNC FLOW FX]`;
+// const validPredicateTypes = ["seen", "seen-all", "seen-any"];
+// const nullEvent = 'null-event'
+// function validateRule({
+//   when = "",
+//   events = nullEvent,
+//   dispatch = [],
+//   dispatchN = []
+// }) {
+//   if (!validPredicateTypes.includes(when)) {
+//     throw new Error(
+//       `${msgPrefix} Invalid predicate type ${when}. Predicate type must be one of ${validPredicateTypes.join(
+//         " "
+//       )}`
+//     );
+//   }
 
-  if (events.length === 0) {
-    throw new Error(`${msgPrefix} Missing trigger event in async flow`);
-  }
+//   if (events.length === 0) {
+//     throw new Error(`${msgPrefix} Missing trigger event in async flow`);
+//   }
 
-  if (dispatch.length === 0) {
-    throw new Error(`${msgPrefix} Missing event for dispatch`);
-  }
-}
+//   if (dispatch.length === 0) {
+//     throw new Error(`${msgPrefix} Missing event for dispatch`);
+//   }
+// }

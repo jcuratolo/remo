@@ -1,62 +1,170 @@
-type Event<EventTypes> = {
-  0: EventTypes
-  1?: any
-  2?: any
-  3?: any
-}
+import Events from "./events";
+import { Registrar } from "./registrar";
 
-interface ISuccessHandler<EventTypes> extends Array<EventTypes> {
-  0?: EventTypes
-  1?: EventTypes
-}
-
-interface IErrorHandler<EventTypes> extends Array<EventTypes> {
-  0?: EventTypes
-  1?: EventTypes
-}
-
-export type EffectMap<EventTypes> = {
-  dispatchN?: Array<Event<EventTypes>>
-  dispatch?: Event<EventTypes>
-}
-
-export type IEventHandler<State, EventTypes> = (
-  state: State,
+export type EventContext = {
+  store: Remo;
+  event: any[];
+  effects: { [key: string]: any };
+  parent?: EventContext
+  children: [];
+};
+export type EffectHandler = (ctx: EventContext) => void;
+export type EventHandler = (state: any, ...args: any[]) => void;
+export type EventWithEffectsHandler = (
+  ctx: EventContext,
   ...args: any[]
-) => void | EffectMap<EventTypes>
-export default class EventStore<State, EventTypes> {
-  // public eventMap: Map<string, (state: State, ...args: any[]) => any> = new Map()
-  eventMap: { [key: string]: IEventHandler<State, EventTypes> } = {}
-  constructor(
-    public appState: State,
-  ) {}
+) => any;
 
-  public on(name: EventTypes, handler: IEventHandler<State, EventTypes>) {
-    this.eventMap[`${name}`] = handler
+// function dispatchFxHandler(
+//   store: Remo,
+//   { type = "", payload = Remo.nullArgs }
+// ) {
+//   store.dispatch(type, payload);
+// }
+
+// function dispatchNFxHandler(
+//   store: Remo,
+//   effect: Array<{ type: string; payload?: any }> = []
+// ) {
+//   effect.forEach(({ type, payload }) => store.dispatch(type, payload));
+// }
+
+export default class Remo {
+  static nullEffectMap = {};
+  static nullArgs: any[] = [];
+  eventLog: Array<EventContext> = []
+  eventQ: Array<EventContext> = [];
+  preEventCallbacks: Array<Function> = [];
+  postEventCallbacks: Array<Function> = [];
+  registrar: Registrar;
+  events: Events;
+  activeContext: EventContext;
+
+  constructor(public state: any) {
+    this.registrar = new Registrar();
+    this.events = new Events(this.registrar);
   }
 
-  public dispatch(type?: EventTypes, ...args: any[]) {
+  on(id: string, handler: EventHandler) {
+    this.events.register(
+      id,
+      ({ store: { state } }: EventContext, ...args: any[]) => {
+        handler(state, ...args);
+        return Remo.nullEffectMap;
+      }
+    );
+  }
+
+  fx(id: string, handler: EventWithEffectsHandler) {
+    this.events.register(id, handler);
+  }
+
+  dispatch(type: string, ...args: any[]) {
+    this.enqueueEvent(type, args);
+    setTimeout(() => {
+      this.processEvents();
+    });
+  }
+
+  dispatchSync(type: string, args?: any[]) {
+    this.enqueueEvent(type, args);
+    this.processEvents();
+  }
+
+  registerEffectHandler(type: string, handler: EffectHandler) {
+    this.registrar.registerHandler("effect", type, handler);
+  }
+
+  enqueueEvent(type: string, args = Remo.nullArgs) {
     if (!type) {
-      return Promise.resolve()
+      console.warn(
+        `Ignoring event with no type and args ${JSON.stringify(args)}`
+      );
     }
-
-    // tslint:disable-next-line:no-console
-    console.info(type, args)
-
-    const handler = this.eventMap[`${type}`]
-
-    if (!handler) {
-      throw new Error(
-        `No handler found for event type ${type} with args ${args}`,
-      )
+    const nextContext: EventContext = {
+      event: [type, ...args],
+      store: this,
+      effects: {},
+      children: []
+    };
+    if (this.activeContext) {
+      nextContext.parent = this.activeContext
+      // @ts-ignore
+      this.activeContext.children.push(nextContext);
     }
+    this.eventQ.push(nextContext);
+  }
 
-    const effectMap = handler(this.appState, ...args)
-
-    if (!effectMap) {
-      return Promise.resolve()
+  processEvents = () => {
+    if (!this.eventQ.length) {
+      return
     }
+    console.group("Start Batch");
+    while (this.eventQ.length) {
+      const ctx = this.eventQ.shift();
+      const { event } = ctx;
+      const [type] = event;
+      const handler = this.registrar.getHandler("event", type);
+      this.processEvent(ctx, handler);
+    }
+    console.groupEnd();
+  };
 
-    return this.effectProcessor.process(this, effectMap)
+  processEvent(
+    context: EventContext,
+    handler: EventHandler | EventWithEffectsHandler
+  ) {
+    this.activeContext = context;
+    const { event } = context;
+    // @ts-ignore
+    const [_, args = Remo.nullArgs] = event;
+    this.notifyPreEventCallbacks(context);
+    // @ts-ignore
+    context.effects = handler(context, ...args) || Remo.nullEffectMap;
+    this.processEffects(context);
+    this.notifyPostEventCallbacks(context);
+    if (!context.parent) {
+      this.eventLog.push(context)
+    }
+    this.activeContext = null
+  }
+
+  processEffects = (context: EventContext) => {
+    const { effects } = context;
+    Object.keys(effects).forEach(effectType => {
+      const handler = this.registrar.getHandler(
+        "effect",
+        effectType
+      ) as EffectHandler;
+      const effect = effects[effectType];
+      // @ts-ignore
+      handler(context, effect);
+    });
+  };
+
+  notifyPostEventCallbacks(context: EventContext) {
+    this.postEventCallbacks.forEach(cb => cb(context));
+  }
+
+  notifyPreEventCallbacks(context: EventContext) {
+    this.preEventCallbacks.forEach(cb => cb(context));
+  }
+
+  addPreEventCallback(cb: Function) {
+    this.preEventCallbacks.push(cb);
+    return () => {
+      this.preEventCallbacks = this.preEventCallbacks.filter(
+        callback => callback !== cb
+      );
+    };
+  }
+
+  addPostEventCallback(cb: Function) {
+    this.postEventCallbacks.push(cb);
+    return () => {
+      this.postEventCallbacks = this.postEventCallbacks.filter(
+        callback => callback !== cb
+      );
+    };
   }
 }
