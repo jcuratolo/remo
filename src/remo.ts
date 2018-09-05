@@ -76,7 +76,7 @@ export default class Remo {
     });
   }
 
-  dispatchSync(type: string, ...args?: any[]) {
+  dispatchSync(type: string, ...args: any[]) {
     this.enqueueEvent(type, args);
     this.processEvents();
   }

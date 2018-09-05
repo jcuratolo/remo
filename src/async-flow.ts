@@ -1,4 +1,4 @@
-import Remo, { EventContext } from "./remo";
+import { EventContext } from "./remo";
 
 // const effect = {
 //   startWith: "init-app",
@@ -14,27 +14,30 @@ import Remo, { EventContext } from "./remo";
 //   ]
 // };
 
-type AsyncFlowRule = {
-  when: "seen" | "seen-all" | "seen-any";
-  events: string;
-  dispatch: "string";
-  halt?: boolean;
+type AsyncFlowRuleSeen = {
+  readonly when: "seen";
+  readonly events: string;
+  readonly dispatch: string;
+  readonly halt?: boolean;
 };
+
+type AsyncFlowRule = AsyncFlowRuleSeen
+
 type AsyncFlow = {
-  startWith: string;
-  rules: Array<AsyncFlowRule>;
+  readonly startWith: string;
+  readonly rules: Array<AsyncFlowRule>;
 };
 
 type AsyncFlowContext = {
-  events: Array<string>;
+  readonly events: Array<string>;
   activeRuleIndex: number;
   dispose: Function;
 };
 
-const nullAsyncFlow: AsyncFlow = {
-  startWith: "",
-  rules: []
-};
+// const nullAsyncFlow: AsyncFlow = {
+//   startWith: "",
+//   rules: []
+// };
 
 export function effectHandler({ store }: EventContext, asyncFlow: AsyncFlow) {
   const { startWith = "" } = asyncFlow;
@@ -58,30 +61,25 @@ function satisfiesRule(events: Array<string>, rule: AsyncFlowRule) {
     case "seen":
       return events.includes(rule.events);
 
-    case "seen-all":
-      return rule.events.every(ev => events.includes(ev));
+    // case "seen-all":
+    //   return rule.events.every(ev => events.includes(ev));
 
-    case "seen-any":
-      return rule.events.some(ev => events.includes(ev));
+    // case "seen-any":
+    //   return rule.events.some(ev => events.includes(ev));
 
     default:
       throw new Error(`Unknown flow rule predicate type ${rule.when}`);
   }
 }
 
-function ruleToDispatches({ dispatch = [], dispatchN = [] }: AsyncFlowRule) {
-  return [dispatch, ...dispatchN];
-}
-
 const msgPrefix = `[ASYNC FLOW FX]`;
 const validPredicateTypes = ["seen", "seen-all", "seen-any"];
 const nullEvent = "null-event";
 function validateRule({
-  when = "",
+  when,
   events = nullEvent,
-  dispatch = [],
-  dispatchN = []
-}) {
+  dispatch = '',
+}: AsyncFlowRule) {
   if (!validPredicateTypes.includes(when)) {
     throw new Error(
       `${msgPrefix} Invalid predicate type ${when}. Predicate type must be one of ${validPredicateTypes.join(
@@ -110,6 +108,8 @@ function createHandler(
     if (!activeRule) {
       return;
     }
+
+    validateRule(activeRule)
 
     const [type] = event;
     const { when, dispatch } = activeRule;
