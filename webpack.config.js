@@ -1,4 +1,3 @@
-const HtmlWebpackPlugin = require('html-webpack-plugin')
 module.exports = {
   mode: 'development',
   resolve: {
@@ -12,8 +11,5 @@ module.exports = {
         use: "awesome-typescript-loader"
       }
     ]
-  },
-  plugins: [
-    new HtmlWebpackPlugin()
-  ]
+  }
 };
