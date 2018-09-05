@@ -2,7 +2,13 @@ import { EventHandler, EventWithEffectsHandler } from "./remo";
 
 export type Kind = "effect" | "event";
 
+enum Kinds {
+  effect = 'effect',
+  event = 'event'
+}
 export class Registrar {
+  static kinds = Kinds
+  kinds = Registrar.kinds
   handlers = new Map<Kind,Map<string, EventHandler | EventWithEffectsHandler>>()
   registerHandler(kind: Kind, id: string, handler: EventHandler | EventWithEffectsHandler) {
     if (!this.handlers.get(kind)) {

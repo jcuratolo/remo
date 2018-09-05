@@ -6,9 +6,9 @@ export type EventContext = {
   event: any[];
   effects: { [key: string]: any };
   parent?: EventContext
-  children: [];
+  children: EventContext[];
 };
-export type EffectHandler = (ctx: EventContext) => void;
+export type EffectHandler = (ctx: EventContext, effect: any) => void;
 export type EventHandler = (state: any, ...args: any[]) => void;
 export type EventWithEffectsHandler = (
   ctx: EventContext,
@@ -30,15 +30,25 @@ export type EventWithEffectsHandler = (
 // }
 
 export default class Remo {
+  static nullStore = new Remo({})
   static nullEffectMap = {};
+  static nullEffect = {}
   static nullArgs: any[] = [];
-  eventLog: Array<EventContext> = []
+  static nullEventContext = {
+    store: Remo.nullStore,
+    event: [] as any[],
+    effects: Remo.nullEffectMap,
+    children: [] as EventContext[]
+  }
+  processedEventsTree: Array<EventContext> = []
+  processEventsList: Array<EventContext> = []
   eventQ: Array<EventContext> = [];
   preEventCallbacks: Array<Function> = [];
   postEventCallbacks: Array<Function> = [];
   registrar: Registrar;
   events: Events;
-  activeContext: EventContext;
+  activeContext: EventContext = Remo.nullEventContext;
+  isProcessing: any;
 
   constructor(public state: any) {
     this.registrar = new Registrar();
@@ -66,7 +76,7 @@ export default class Remo {
     });
   }
 
-  dispatchSync(type: string, args?: any[]) {
+  dispatchSync(type: string, ...args?: any[]) {
     this.enqueueEvent(type, args);
     this.processEvents();
   }
@@ -82,12 +92,12 @@ export default class Remo {
       );
     }
     const nextContext: EventContext = {
-      event: [type, ...args],
+      event: [type].concat(args),
       store: this,
       effects: {},
       children: []
     };
-    if (this.activeContext) {
+    if (this.isProcessing) {
       nextContext.parent = this.activeContext
       // @ts-ignore
       this.activeContext.children.push(nextContext);
@@ -99,15 +109,24 @@ export default class Remo {
     if (!this.eventQ.length) {
       return
     }
-    console.group("Start Batch");
+    this.isProcessing = true
     while (this.eventQ.length) {
       const ctx = this.eventQ.shift();
       const { event } = ctx;
       const [type] = event;
-      const handler = this.registrar.getHandler("event", type);
+      const handler = this.registrar.getHandler(this.registrar.kinds.event, type);
+      const isChildEvent = Boolean(ctx.parent)
       this.processEvent(ctx, handler);
+
+      // Only root events appear as elements in this list
+      if (!isChildEvent) {
+        this.processedEventsTree.push(ctx)
+      }
+
+      // All events processed appear in this list
+      this.processEventsList.push(ctx)
     }
-    console.groupEnd();
+    this.isProcessing = false
   };
 
   processEvent(
@@ -120,17 +139,14 @@ export default class Remo {
     const [_, args = Remo.nullArgs] = event;
     this.notifyPreEventCallbacks(context);
     // @ts-ignore
-    context.effects = handler(context, ...args) || Remo.nullEffectMap;
+    context.effects = handler.apply(void 0,[context].concat(args)) || Remo.nullEffectMap;
     this.processEffects(context);
     this.notifyPostEventCallbacks(context);
-    if (!context.parent) {
-      this.eventLog.push(context)
-    }
     this.activeContext = null
   }
 
   processEffects = (context: EventContext) => {
-    const { effects } = context;
+    const { effects = {} } = context;
     Object.keys(effects).forEach(effectType => {
       const handler = this.registrar.getHandler(
         "effect",
@@ -150,7 +166,7 @@ export default class Remo {
     this.preEventCallbacks.forEach(cb => cb(context));
   }
 
-  addPreEventCallback(cb: Function) {
+  addPreEventCallback(cb: EventCallback) {
     this.preEventCallbacks.push(cb);
     return () => {
       this.preEventCallbacks = this.preEventCallbacks.filter(
@@ -159,7 +175,7 @@ export default class Remo {
     };
   }
 
-  addPostEventCallback(cb: Function) {
+  addPostEventCallback(cb: EventCallback) {
     this.postEventCallbacks.push(cb);
     return () => {
       this.postEventCallbacks = this.postEventCallbacks.filter(
@@ -168,3 +184,5 @@ export default class Remo {
     };
   }
 }
+
+type EventCallback = (ctx: EventContext) => void

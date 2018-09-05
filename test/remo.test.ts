@@ -16,22 +16,30 @@ describe("EventStore", () => {
     expect(new Remo(state)).toBeDefined();
   });
 
+  test("Registers effect event handlers", () => {
+    const myHandler = () => {};
+    store.fx("my-event", myHandler);
+    expect(
+      store.registrar.handlers.get(store.registrar.kinds.event).get("my-event")
+    ).toBe(myHandler);
+  });
+
   test("Dispatch enqueues event for async processing", done => {
     const handler = jest.fn((stateArg, payloadArg) => {
-      expect(stateArg === state).toBeTruthy();
-      expect(payloadArg === payload).toBeTruthy();
+      expect(stateArg).toBe(state);
+      expect(payloadArg).toBe(payload);
       done();
     });
     store.on(type, handler);
     expect(store.eventQ.length).toBe(0);
     store.dispatch(type, payload);
-    expect(handler).not.toBeCalled();
     expect(store.eventQ.length).toBe(1);
+    expect(handler).not.toBeCalled();
   });
 
   test("Dispatch enqueues events that yield effects for async processing", done => {
-    const handler = jest.fn((stateArg, payloadArg) => {
-      expect(state === stateArg).toBeTruthy();
+    const handler = jest.fn(({ store }, payloadArg) => {
+      expect(store.state === state).toBeTruthy();
       expect(payload === payloadArg).toBeTruthy();
       done();
       return {};
@@ -51,29 +59,30 @@ describe("EventStore", () => {
     store.dispatchSync(type, payload);
     store.dispatchSync("type-2", payload);
     expect(handler).toHaveBeenCalledWith(store.state, payload);
-    expect(handler2).toHaveBeenCalledWith(store.state, payload);
+    expect(handler2.mock.calls.length).toBe(1)
+    expect(handler2.mock.calls[0][1]).toBe(payload)
+    expect(handler2.mock.calls[0][0].store).toBe(store)
   });
 
   test("Callbacks are fired before and after an event is processed", done => {
     store.on(type, () => {});
-    let preCbfired = false;
-    let postCbFired = false;
-    store.addPreEventCallback((storeArg, typeArg, payloadArg) => {
-      preCbfired = true;
-      expect(storeArg === store).toBeTruthy();
-      expect(typeArg === type).toBeTruthy();
-      expect(payloadArg === payload).toBeTruthy();
-      expect(postCbFired).toBeFalsy();
-    });
-    store.addPostEventCallback((storeArg, typeArg, payloadArg) => {
-      postCbFired = true;
-      expect(storeArg === store).toBeTruthy();
-      expect(typeArg === type).toBeTruthy();
-      expect(payloadArg === payload).toBeTruthy();
-      expect(preCbfired).toBeTruthy();
-      expect(postCbFired).toBeTruthy();
+    const preCb = jest.fn((ctx) => {
+      expect(ctx.store === store).toBeTruthy();
+      expect(ctx.event[0] === type).toBeTruthy();
+      expect(ctx.event[1] === payload).toBeTruthy();
+      expect(postCb).not.toBeCalled()    
+    })
+    const postCb = jest.fn((ctx) => {
+      expect(ctx.store === store).toBeTruthy();
+      expect(ctx.event[0] === type).toBeTruthy();
+      expect(ctx.event[1] === payload).toBeTruthy();
+      expect(preCb).toHaveBeenCalled()
+      expect(postCb).toHaveBeenCalled()
       done();
-    });
+    })
+
+    store.addPreEventCallback(preCb);
+    store.addPostEventCallback(postCb);
     store.dispatch(type, payload);
   });
 
@@ -89,17 +98,14 @@ describe("EventStore", () => {
     preCbDisposer();
     postCbDisposer();
     store.dispatchSync(type, payload);
-    // expect(preCb).not.toBeCalled()
-    // expect(postCb).toBeCalled()
-    // store.dispatchSync(type, payload)
     expect(preCb).toHaveBeenCalledTimes(1);
     expect(postCb).toHaveBeenCalledTimes(1);
   });
 
   test("Registered effect handlers receive effects from fx events", done => {
     const httpEffectHandler = (store, effect) => {
-      expect(effect === httpEffect).toBeTruthy();
-      expect(effect === httpEffect2).toBeFalsy();
+      expect(effect).toBe(httpEffect)
+      expect(effect).not.toBe(httpEffect2);
       done();
     };
     const httpEffect = {
@@ -129,13 +135,17 @@ describe("EventStore", () => {
   test("Dispatch effects induce dispatches after an fx event is processed", done => {
     store.fx(type, () => {
       return {
-        dispatch: { type: "from-dispatch-effect", payload: "X" }
+        dispatch: ["from-dispatch-effect", "X"]
       };
     });
     const handler = jest.fn((state, payload) => {
       expect(payload).toBe("X");
       done();
     });
+    store.registerEffectHandler('dispatch', (context, effect) => {
+      context.store.dispatch(...effect)
+    })
+
     store.on("from-dispatch-effect", handler);
     store.dispatch(type);
   });
