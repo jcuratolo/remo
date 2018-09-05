@@ -1,8 +1,8 @@
 {
-  "name": "Remo",
+  "name": "remo",
   "version": "1.0.0",
   "description": "",
-  "main": "derp.js",
+  "main": "dist/derp.js",
   "directories": {
     "test": "test"
   },
