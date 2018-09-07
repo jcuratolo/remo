@@ -11,7 +11,7 @@ describe('async-flow effect handler', () => {
     state = {};
     store = new Remo(state);
     store.registerEffectHandler('async-flow', asyncFlowFx.effectHandler)
-    store.registerEffectHandler('dispatch', (ctx, event) => ctx.store.dispatch(...event))
+    store.registerEffectHandler('dispatch', (ctx, event) => ctx.store.dispatch(event))
   });
 
   test('Fx event with async flow effect dispatches events in correct order', done => {
@@ -58,7 +58,7 @@ describe('async-flow effect handler', () => {
       }
     })
 
-    store.dispatch('async')
+    store.dispatch(['async'])
   })
 })
 

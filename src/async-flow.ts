@@ -53,7 +53,7 @@ export function effectHandler({ store }: EventContext, asyncFlow: AsyncFlow) {
 
   const disposer = store.addPostEventCallback(handler);
   flowContext.dispose = disposer;
-  store.dispatch(startWith);
+  store.dispatch([startWith]);
 }
 
 function satisfiesRule(events: Array<string>, rule: AsyncFlowRule) {
@@ -125,7 +125,7 @@ function createHandler(
       return;
     }
 
-    store.dispatch(dispatch);
+    store.dispatch([dispatch]);
 
     flowContext.activeRuleIndex++;
   };

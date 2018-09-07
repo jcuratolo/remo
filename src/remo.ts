@@ -5,7 +5,7 @@ export type EventContext = {
   store: Remo;
   event: any[];
   effects: { [key: string]: any };
-  parent?: EventContext
+  parent?: EventContext;
   children: EventContext[];
 };
 export type EffectHandler = (ctx: EventContext, effect: any) => void;
@@ -30,18 +30,18 @@ export type EventWithEffectsHandler = (
 // }
 
 export default class Remo {
-  static nullStore = new Remo({})
+  static nullStore = new Remo({});
   static nullEffectMap = {};
-  static nullEffect = {}
+  static nullEffect = {};
   static nullArgs: any[] = [];
   static nullEventContext = {
     store: Remo.nullStore,
     event: [] as any[],
     effects: Remo.nullEffectMap,
     children: [] as EventContext[]
-  }
-  processedEventsTree: Array<EventContext> = []
-  processEventsList: Array<EventContext> = []
+  };
+  processedEventsTree: Array<EventContext> = [];
+  processEventsList: Array<EventContext> = [];
   eventQ: Array<EventContext> = [];
   preEventCallbacks: Array<Function> = [];
   postEventCallbacks: Array<Function> = [];
@@ -69,15 +69,15 @@ export default class Remo {
     this.events.register(id, handler);
   }
 
-  dispatch(type: string, ...args: any[]) {
-    this.enqueueEvent(type, args);
+  dispatch(event: any[]) {
+    this.enqueueEvent(event);
     setTimeout(() => {
       this.processEvents();
     });
   }
 
-  dispatchSync(type: string, ...args: any[]) {
-    this.enqueueEvent(type, args);
+  dispatchSync(event: any[]) {
+    this.enqueueEvent(event);
     this.processEvents();
   }
 
@@ -85,20 +85,21 @@ export default class Remo {
     this.registrar.registerHandler("effect", type, handler);
   }
 
-  enqueueEvent(type: string, args = Remo.nullArgs) {
+  enqueueEvent(event) {
+    const [type, ...args] = event;
     if (!type) {
       console.warn(
         `Ignoring event with no type and args ${JSON.stringify(args)}`
       );
     }
     const nextContext: EventContext = {
-      event: [type].concat(args),
+      event: event,
       store: this,
       effects: {},
       children: []
     };
     if (this.isProcessing) {
-      nextContext.parent = this.activeContext
+      nextContext.parent = this.activeContext;
       // @ts-ignore
       this.activeContext.children.push(nextContext);
     }
@@ -107,27 +108,34 @@ export default class Remo {
 
   processEvents = () => {
     if (!this.eventQ.length) {
-      return
+      return;
     }
-    this.isProcessing = true
+    this.isProcessing = true;
     while (this.eventQ.length) {
       const ctx = this.eventQ.shift();
       const { event } = ctx;
       const [type] = event;
-      const handler = this.registrar.getHandler(this.registrar.kinds.event, type);
-      const isChildEvent = Boolean(ctx.parent)
+      const handler = this.registrar.getHandler(
+        this.registrar.kinds.event,
+        type
+      );
       this.processEvent(ctx, handler);
-
-      // Only root events appear as elements in this list
-      if (!isChildEvent) {
-        this.processedEventsTree.push(ctx)
-      }
-
-      // All events processed appear in this list
-      this.processEventsList.push(ctx)
+      this.recordEvent(ctx);
     }
-    this.isProcessing = false
+    this.isProcessing = false;
   };
+
+  recordEvent(ctx: EventContext) {
+    const isChildEvent = Boolean(ctx.parent);
+
+    if (!isChildEvent) {
+      // Only root events appear as elements in this list
+      this.processedEventsTree.push(ctx);
+    }
+
+    // All events processed appear in this list
+    this.processEventsList.push(ctx);
+  }
 
   processEvent(
     context: EventContext,
@@ -135,21 +143,19 @@ export default class Remo {
   ) {
     this.activeContext = context;
     const { event } = context;
-    // @ts-ignore
-    const [_, args = Remo.nullArgs] = event;
     this.notifyPreEventCallbacks(context);
     // @ts-ignore
-    context.effects = handler.apply(void 0,[context].concat(args)) || Remo.nullEffectMap;
+    context.effects = handler(context, event) || Remo.nullEffectMap;
     this.processEffects(context);
     this.notifyPostEventCallbacks(context);
-    this.activeContext = null
+    this.activeContext = null;
   }
 
   processEffects = (context: EventContext) => {
     const { effects = {} } = context;
     Object.keys(effects).forEach(effectType => {
       const handler = this.registrar.getHandler(
-        "effect",
+        this.registrar.kinds.effect,
         effectType
       ) as EffectHandler;
       const effect = effects[effectType];
@@ -185,4 +191,4 @@ export default class Remo {
   }
 }
 
-type EventCallback = (ctx: EventContext) => void
+type EventCallback = (ctx: EventContext) => void;
