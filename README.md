@@ -35,6 +35,7 @@ store.fx('my-event', (context, evt) => {
   const [type, payload] = evt
   context.store.state.status = payload.status
   
+  // Causes ['my-event-2'] to be dispatched
   return {
     dispatch: ['my-event-2']
   }
